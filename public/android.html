@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="RemoteDesk Android — Share your screen and accept remote control." />
+  <title>RemoteDesk — Android Host</title>
+  <link rel="stylesheet" href="css/style.css" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📱</text></svg>" />
+  <style>
+    .android-page { display: flex; flex-direction: column; min-height: 100vh; }
+    .android-content {
+      flex: 1; display: flex; flex-direction: column;
+      align-items: center; padding: 20px 16px 40px; gap: 20px;
+    }
+    .android-card-wrap { width: 100%; max-width: 480px; display: flex; flex-direction: column; gap: 16px; }
+    .preview-box {
+      background: #000; border-radius: var(--radius-sm); border: 1px solid var(--border);
+      overflow: hidden; position: relative;
+      display: flex; align-items: center; justify-content: center;
+      aspect-ratio: 9/16; max-height: 320px; width: 100%;
+    }
+    .local-video { width: 100%; height: 100%; object-fit: cover; }
+    .preview-label {
+      position: absolute; top: 8px; left: 8px; background: rgba(0,0,0,0.6);
+      color: #fff; font-size: 0.7rem; font-weight: 700; padding: 3px 10px;
+      border-radius: 100px; letter-spacing: 0.05em; text-transform: uppercase;
+    }
+    .preview-empty {
+      color: var(--text-muted); font-size: 0.85rem; text-align: center;
+      display: flex; flex-direction: column; align-items: center; gap: 8px;
+    }
+    .preview-empty span:first-child { font-size: 2.8rem; }
+    .cmd-log {
+      background: var(--bg-input); border: 1px solid var(--border);
+      border-radius: var(--radius-xs); padding: 10px 12px; height: 150px;
+      overflow-y: auto; font-family: 'JetBrains Mono', monospace;
+      font-size: 0.74rem; color: var(--text-secondary); line-height: 1.8;
+    }
+    .cmd-log::-webkit-scrollbar { width: 3px; }
+    .cmd-log::-webkit-scrollbar-thumb { background: var(--border); }
+    .cmd-entry { display: flex; gap: 8px; }
+    .cmd-time { color: var(--text-muted); flex-shrink: 0; font-size: 0.68rem; }
+    .cmd-type.tap    { color: #60a5fa; }
+    .cmd-type.swipe  { color: #a78bfa; }
+    .cmd-type.scroll { color: #34d399; }
+    .cmd-type.double_tap { color: #fb923c; }
+    .cmd-type.keyboard { color: #fbbf24; }
+    .cmd-type.system { color: var(--text-secondary); }
+    .received-text-box {
+      background: var(--bg-input); border: 1px solid var(--border-accent);
+      border-radius: var(--radius-xs); padding: 10px 14px;
+      font-size: 1rem; color: var(--accent); font-family: 'JetBrains Mono', monospace;
+      min-height: 42px; word-break: break-all; display: none;
+    }
+    .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .info-item {
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: var(--radius-xs); padding: 12px;
+      font-size: 0.8rem; text-align: center;
+    }
+    .info-item .info-val { font-size: 1.1rem; font-weight: 700; color: var(--accent); display: block; margin-top: 4px; }
+    @media (max-width: 480px) {
+      .android-content { padding: 14px 10px 30px; }
+      .preview-box { max-height: 260px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="toast-container" id="toastContainer"></div>
+
+  <div class="android-page">
+    <!-- Nav -->
+    <nav class="nav">
+      <a href="index.html" class="nav-brand">
+        <div class="nav-logo">📱</div>
+        <span class="nav-title">RemoteDesk — Android Host</span>
+      </a>
+      <div class="nav-badge" id="roomBadge">——</div>
+    </nav>
+
+    <div class="android-content">
+      <div class="android-card-wrap">
+
+        <!-- Status Card -->
+        <div class="card" style="padding:18px;">
+          <div class="status-bar" id="connStatus">
+            <span class="status-dot"></span>
+            <span id="connStatusText">Connecting to server…</span>
+          </div>
+        </div>
+
+        <!-- Screen Share Card -->
+        <div class="card" style="padding:18px;">
+          <h3 style="font-size:0.9rem;margin-bottom:14px;">📺 Screen Sharing</h3>
+
+          <!-- Preview -->
+          <div class="preview-box" id="previewBox">
+            <div class="preview-empty" id="previewEmpty">
+              <span>📱</span>
+              <span>Your screen preview will appear here</span>
+            </div>
+            <video id="localVideo" class="local-video" autoplay playsinline muted style="display:none;"></video>
+            <div class="preview-label" id="liveLabel" style="display:none;">● LIVE</div>
+          </div>
+
+          <div style="display:flex;gap:10px;margin-top:14px;">
+            <button class="btn btn-success btn-block" id="startShareBtn">
+              ▶ Start Screen Share
+            </button>
+            <button class="btn btn-danger btn-sm" id="stopShareBtn" style="display:none;">
+              ⏹ Stop
+            </button>
+          </div>
+        </div>
+
+        <!-- Connection Info -->
+        <div class="card" style="padding:18px;">
+          <h3 style="font-size:0.9rem;margin-bottom:12px;">📊 Session Info</h3>
+          <div class="info-grid">
+            <div class="info-item">
+              Status
+              <span class="info-val" id="infoStatus">Idle</span>
+            </div>
+            <div class="info-item">
+              Room
+              <span class="info-val" id="infoRoom">——</span>
+            </div>
+            <div class="info-item">
+              Commands
+              <span class="info-val" id="infoCommands">0</span>
+            </div>
+            <div class="info-item">
+              Screen
+              <span class="info-val" id="infoScreen">Off</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Received Text -->
+        <div class="card" style="padding:18px;" id="textCard" style="display:none;">
+          <h3 style="font-size:0.9rem;margin-bottom:10px;">⌨ Received Text</h3>
+          <div class="received-text-box" id="receivedText">—</div>
+        </div>
+
+        <!-- Command Log -->
+        <div class="card" style="padding:18px;">
+          <h3 style="font-size:0.9rem;margin-bottom:10px;">📋 Command Log</h3>
+          <div class="cmd-log" id="cmdLog">
+            <div class="cmd-entry">
+              <span class="cmd-time">--:--:--</span>
+              <span class="cmd-type system">Session initializing…</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Disconnect -->
+        <button class="btn btn-ghost btn-block" id="disconnectBtn" style="margin-top:4px;">
+          ⏻ Disconnect &amp; Leave Room
+        </button>
+
+      </div>
+    </div>
+
+    <footer>
+      <p>RemoteDesk &mdash; Android Host View &nbsp;|&nbsp; <a href="index.html">Back to Home</a></p>
+    </footer>
+  </div>
+
+  <script src="js/config.js"></script>
+  <script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
+  <script src="js/socket.js"></script>
+  <script src="js/webrtc.js"></script>
+  <script src="js/android.js"></script>
+</body>
+</html>

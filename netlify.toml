@@ -1,0 +1,6 @@
+[build]
+  publish = "public"
+
+# NOTE: Socket.io WebSocket proxy via Netlify redirects is unreliable.
+# The frontend connects directly to the Render backend via js/config.js
+# Update window.REMOTE_SERVER_URL in public/js/config.js with your Render URL.

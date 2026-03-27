@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="RemoteDesk — Web-to-Web remote access system. Control any Android device from your browser using WebRTC and Socket.io." />
+  <title>RemoteDesk — Web Remote Access</title>
+  <link rel="stylesheet" href="css/style.css" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🖥</text></svg>" />
+</head>
+<body>
+  <!-- Toast Notifications -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <div class="page-wrapper">
+    <!-- Navigation -->
+    <nav class="nav">
+      <a href="index.html" class="nav-brand">
+        <div class="nav-logo">🖥</div>
+        <span class="nav-title">RemoteDesk</span>
+      </a>
+      <div class="nav-badge">WebRTC Powered</div>
+    </nav>
+
+    <!-- Hero -->
+    <div class="hero">
+      <div class="hero-badge">Remote Access System</div>
+      <h1>Control Any Device<br>From Your <span class="gradient-text">Browser</span></h1>
+      <p>Connect to any Android device instantly using WebRTC technology. No app installation required — just a browser.</p>
+    </div>
+
+    <!-- Main Actions -->
+    <div class="container">
+      <div class="home-actions">
+        <!-- Create Room Card -->
+        <div class="card" id="createCard" style="animation-delay:0.1s">
+          <div class="card-icon blue">📡</div>
+          <h3>Host a Session</h3>
+          <p>Create a room and share the ID with your Android device to start screen sharing.</p>
+
+          <div id="createRoomSection">
+            <button class="btn btn-primary btn-block btn-lg" id="createRoomBtn">
+              <span id="createBtnIcon">✦</span> Create Room
+            </button>
+          </div>
+
+          <div id="roomCreatedSection" style="display:none">
+            <p style="font-size:0.82rem;color:var(--text-muted);margin-bottom:8px;">Your Room ID — share this with the Android device:</p>
+            <div class="room-id-display">
+              <span class="room-id-text" id="displayRoomId">——</span>
+              <button class="copy-btn" id="copyBtn">
+                <span id="copyIcon">⧉</span> Copy
+              </button>
+            </div>
+            <div class="status-bar waiting" id="waitingStatus">
+              <span class="status-dot"></span>
+              <span>Waiting for Android device to join…</span>
+            </div>
+            <div style="margin-top:14px;display:flex;gap:8px;">
+              <a id="goControllerBtn" href="#" class="btn btn-success btn-block" style="display:none">
+                Open Controller →
+              </a>
+              <button class="btn btn-ghost btn-sm" id="newRoomBtn" onclick="resetCreateSection()">New Room</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Join Room Card -->
+        <div class="card" id="joinCard" style="animation-delay:0.2s">
+          <div class="card-icon purple">🤝</div>
+          <h3>Join as Android</h3>
+          <p>Enter the Room ID from the controller device to begin sharing your screen.</p>
+
+          <div class="form-group">
+            <label class="form-label" for="joinRoomInput">Room ID</label>
+            <div class="input-group">
+              <input
+                type="text"
+                id="joinRoomInput"
+                class="form-input"
+                placeholder="e.g. A1B2C3D4"
+                maxlength="8"
+                autocomplete="off"
+                autocapitalize="characters"
+                spellcheck="false"
+              />
+            </div>
+          </div>
+
+          <button class="btn btn-secondary btn-block btn-lg" id="joinRoomBtn">
+            Join Room →
+          </button>
+
+          <div id="joinStatus" style="display:none;margin-top:14px;">
+            <div class="status-bar" id="joinStatusBar">
+              <span class="status-dot"></span>
+              <span id="joinStatusText">Joining…</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Features Section -->
+      <section class="features-section">
+        <h2 class="features-title">How It Works</h2>
+        <div class="feature-list">
+          <div class="feature-item" style="animation:fadeInUp 0.5s 0.15s both">
+            <div class="feature-icon">🔑</div>
+            <div>
+              <h4>Room-Based Sessions</h4>
+              <p>Each session gets a unique 8-character Room ID for secure pairing.</p>
+            </div>
+          </div>
+          <div class="feature-item" style="animation:fadeInUp 0.5s 0.25s both">
+            <div class="feature-icon">📺</div>
+            <div>
+              <h4>Real-Time Screen Share</h4>
+              <p>WebRTC streams the Android screen at low latency directly to the controller.</p>
+            </div>
+          </div>
+          <div class="feature-item" style="animation:fadeInUp 0.5s 0.35s both">
+            <div class="feature-icon">👆</div>
+            <div>
+              <h4>Touch & Keyboard Control</h4>
+              <p>Tap, swipe, scroll, and type — all commands are forwarded in real time.</p>
+            </div>
+          </div>
+          <div class="feature-item" style="animation:fadeInUp 0.5s 0.45s both">
+            <div class="feature-icon">🔒</div>
+            <div>
+              <h4>Secure Connection</h4>
+              <p>Sessions are isolated by Room ID with CORS protection and input validation.</p>
+            </div>
+          </div>
+          <div class="feature-item" style="animation:fadeInUp 0.5s 0.55s both">
+            <div class="feature-icon">⚡</div>
+            <div>
+              <h4>Sub-200ms Latency</h4>
+              <p>Direct peer-to-peer WebRTC connection for minimal delay.</p>
+            </div>
+          </div>
+          <div class="feature-item" style="animation:fadeInUp 0.5s 0.65s both">
+            <div class="feature-icon">🌐</div>
+            <div>
+              <h4>No Installation</h4>
+              <p>Works entirely in the browser — no app or plugin required.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <footer>
+      <p>RemoteDesk &mdash; Web-to-Web Remote Access &nbsp;|&nbsp; Built with <a href="#">WebRTC + Socket.io</a></p>
+    </footer>
+  </div>
+
+  <script src="js/config.js"></script>
+  <script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
+  <script src="js/socket.js"></script>
+  <script>
+    // ─── Toast Utility ─────────────────────────────────────────
+    function showToast(msg, type = 'info') {
+      const tc = document.getElementById('toastContainer');
+      const t = document.createElement('div');
+      t.className = `toast ${type}`;
+      t.textContent = msg;
+      tc.appendChild(t);
+      setTimeout(() => { t.style.opacity = '0'; t.style.transform = 'translateX(20px)'; t.style.transition = '0.3s'; }, 3000);
+      setTimeout(() => t.remove(), 3400);
+    }
+
+    // ─── Create Room ────────────────────────────────────────────
+    const createRoomBtn = document.getElementById('createRoomBtn');
+    const createBtnIcon = document.getElementById('createBtnIcon');
+    const createRoomSection = document.getElementById('createRoomSection');
+    const roomCreatedSection = document.getElementById('roomCreatedSection');
+    const displayRoomId = document.getElementById('displayRoomId');
+    const waitingStatus = document.getElementById('waitingStatus');
+    const goControllerBtn = document.getElementById('goControllerBtn');
+    const copyBtn = document.getElementById('copyBtn');
+    const copyIcon = document.getElementById('copyIcon');
+
+    let currentRoomId = null;
+
+    createRoomBtn.addEventListener('click', async () => {
+      createRoomBtn.disabled = true;
+      createBtnIcon.innerHTML = '<span class="spinner"></span>';
+      try {
+        const res = await fetch(API_URL('/api/create-room'), { method: 'POST' });
+        const data = await res.json();
+        if (!data.success) throw new Error('Server error');
+        currentRoomId = data.roomId;
+        displayRoomId.textContent = data.roomId;
+        createRoomSection.style.display = 'none';
+        roomCreatedSection.style.display = 'block';
+        sessionStorage.setItem('roomId', data.roomId);
+        sessionStorage.setItem('role', 'controller');
+
+        // Connect socket and wait for host
+        const sock = getSocket();
+        sock.emit('join-room-controller', { roomId: data.roomId });
+        sock.on('host-connected', () => {
+          waitingStatus.className = 'status-bar connected';
+          waitingStatus.querySelector('span:last-child').textContent = 'Android device connected!';
+          goControllerBtn.href = `controller.html?room=${data.roomId}`;
+          goControllerBtn.style.display = 'flex';
+          showToast('Android device connected!', 'success');
+        });
+      } catch (e) {
+        showToast('Failed to create room. Try again.', 'error');
+        createRoomBtn.disabled = false;
+        createBtnIcon.textContent = '✦';
+      }
+    });
+
+    copyBtn.addEventListener('click', () => {
+      if (!currentRoomId) return;
+      navigator.clipboard.writeText(currentRoomId).then(() => {
+        copyBtn.classList.add('copied');
+        document.getElementById('copyIcon').textContent = '✓';
+        setTimeout(() => { copyBtn.classList.remove('copied'); copyIcon.textContent = '⧉'; }, 2000);
+        showToast('Room ID copied!', 'success');
+      });
+    });
+
+    function resetCreateSection() {
+      createRoomSection.style.display = 'block';
+      roomCreatedSection.style.display = 'none';
+      createRoomBtn.disabled = false;
+      createBtnIcon.textContent = '✦';
+      currentRoomId = null;
+    }
+
+    // ─── Join Room ──────────────────────────────────────────────
+    const joinRoomInput = document.getElementById('joinRoomInput');
+    const joinRoomBtn = document.getElementById('joinRoomBtn');
+    const joinStatus = document.getElementById('joinStatus');
+    const joinStatusBar = document.getElementById('joinStatusBar');
+    const joinStatusText = document.getElementById('joinStatusText');
+
+    joinRoomInput.addEventListener('input', () => {
+      joinRoomInput.value = joinRoomInput.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+    });
+
+    joinRoomInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') joinRoomBtn.click(); });
+
+    joinRoomBtn.addEventListener('click', async () => {
+      const roomId = joinRoomInput.value.trim().toUpperCase();
+      if (!roomId || roomId.length < 4) {
+        showToast('Please enter a valid Room ID.', 'error');
+        joinRoomInput.focus();
+        return;
+      }
+
+      // ✋ Self-join block — same device cannot join its own created room
+      if (currentRoomId && roomId === currentRoomId) {
+        joinStatus.style.display = 'block';
+        joinStatusBar.className = 'status-bar error';
+        joinStatusText.textContent = 'You cannot join your own room! Share this ID with a different device.';
+        joinRoomInput.value = '';
+        joinRoomInput.focus();
+        showToast('❌ Apna khud ka room join nahi kar sakte!', 'error');
+        return;
+      }
+
+      joinRoomBtn.disabled = true;
+      joinStatus.style.display = 'block';
+      joinStatusBar.className = 'status-bar waiting';
+      joinStatusText.textContent = 'Checking room…';
+
+      try {
+        const res = await fetch(API_URL(`/api/room/${roomId}`));
+        const data = await res.json();
+        if (!data.exists) {
+          joinStatusBar.className = 'status-bar error';
+          joinStatusText.textContent = 'Room not found. Double-check the ID.';
+          joinRoomBtn.disabled = false;
+          return;
+        }
+
+        sessionStorage.setItem('roomId', roomId);
+        sessionStorage.setItem('role', 'host');
+        joinStatusBar.className = 'status-bar connected';
+        joinStatusText.textContent = 'Room found! Redirecting…';
+        showToast('Joining room…', 'info');
+        setTimeout(() => { window.location.href = `android.html?room=${roomId}`; }, 800);
+      } catch (e) {
+        joinStatusBar.className = 'status-bar error';
+        joinStatusText.textContent = 'Network error. Please try again.';
+        joinRoomBtn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>

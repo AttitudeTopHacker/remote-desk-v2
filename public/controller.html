@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="RemoteDesk Controller — View and control your Android device's screen in real time." />
+  <title>RemoteDesk — Controller</title>
+  <link rel="stylesheet" href="css/style.css" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🖥</text></svg>" />
+  <style>
+    body { overflow: hidden; }
+    .controller-page { display: flex; flex-direction: column; height: 100vh; }
+    .top-bar {
+      display: flex; align-items: center; gap: 12px;
+      padding: 10px 16px; background: var(--bg-secondary);
+      border-bottom: 1px solid var(--border); flex-shrink: 0; z-index: 50;
+      flex-wrap: wrap;
+    }
+    .top-bar .nav-brand { text-decoration: none; display: flex; align-items: center; gap: 10px; }
+    .top-bar .nav-logo { width: 30px; height: 30px; font-size: 15px; }
+    .top-bar .nav-title { font-size: 0.95rem; }
+    .top-bar-right { display: flex; align-items: center; gap: 10px; margin-left: auto; flex-wrap: wrap; }
+    .room-chip {
+      background: var(--bg-card); border: 1px solid var(--border-accent);
+      border-radius: 100px; padding: 5px 14px; font-size: 0.78rem; color: var(--accent);
+      font-family: 'JetBrains Mono', monospace; font-weight: 700; letter-spacing: 0.1em;
+    }
+    .controller-body { display: flex; flex: 1; min-height: 0; }
+    .video-panel { flex: 1; position: relative; background: #000; min-height: 0; }
+    .remote-video { width: 100%; height: 100%; object-fit: contain; display: block; }
+    .touch-canvas { position: absolute; inset: 0; cursor: crosshair; z-index: 10; touch-action: none; }
+    .video-placeholder {
+      position: absolute; inset: 0; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 12px;
+      color: var(--text-muted); font-size: 0.9rem; pointer-events: none;
+    }
+    .video-placeholder span:first-child { font-size: 3.5rem; }
+    .side-panel {
+      width: 300px; flex-shrink: 0; background: var(--bg-secondary);
+      border-left: 1px solid var(--border); display: flex;
+      flex-direction: column; overflow-y: auto;
+    }
+    .side-section { padding: 16px; border-bottom: 1px solid var(--border); }
+    .side-section h3 {
+      font-size: 0.72rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.08em; color: var(--text-muted); margin-bottom: 12px;
+    }
+    .btn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+    .btn-grid .btn { font-size: 0.78rem; padding: 10px 8px; }
+    .kb-textarea {
+      width: 100%; background: var(--bg-input); border: 1px solid var(--border);
+      color: var(--text-primary); border-radius: var(--radius-xs); padding: 10px;
+      font-size: 0.88rem; resize: none; height: 80px; outline: none;
+      font-family: 'Inter', sans-serif; transition: var(--transition); box-sizing: border-box;
+    }
+    .kb-textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow); }
+    .kb-textarea::placeholder { color: var(--text-muted); }
+    .event-log {
+      flex: 1; overflow-y: auto; padding: 12px 16px;
+      font-family: 'JetBrains Mono', monospace; font-size: 0.72rem;
+      line-height: 1.8; color: var(--text-muted);
+    }
+    .log-line { display: flex; gap: 8px; }
+    .log-line .t { color: var(--text-muted); flex-shrink: 0; }
+    .log-line .e.tap { color: #60a5fa; }
+    .log-line .e.swipe { color: #a78bfa; }
+    .log-line .e.scroll { color: #34d399; }
+    .log-line .e.dbl { color: #fb923c; }
+    .log-line .e.key { color: #fbbf24; }
+    .log-line .e.sys { color: var(--text-secondary); }
+
+    /* Swipe indicator */
+    .swipe-indicator {
+      position: absolute; border-radius: 100px; pointer-events: none; z-index: 20;
+      transition: opacity 0.2s;
+    }
+
+    /* ── Responsive ── */
+    @media (max-width: 900px) {
+      .controller-body { flex-direction: column; }
+      .side-panel { 
+        width: 100%; flex-shrink: 0;
+        max-height: 42vh; border-left: none; border-top: 1px solid var(--border);
+        flex-direction: row; flex-wrap: wrap; overflow-y: auto;
+      }
+      .side-section { flex: 1; min-width: 200px; border-bottom: none; border-right: 1px solid var(--border); }
+      .event-log { display: none; }
+      .video-panel { flex: 1; min-height: 220px; }
+      body { overflow: auto; }
+    }
+    @media (max-width: 540px) {
+      .top-bar { gap: 8px; padding: 8px 10px; }
+      .room-chip { font-size: 0.7rem; }
+      .side-section { min-width: 150px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="toast-container" id="toastContainer"></div>
+
+  <div class="controller-page">
+    <!-- Top Bar -->
+    <div class="top-bar">
+      <a href="index.html" class="nav-brand">
+        <div class="nav-logo">🖥</div>
+        <span class="nav-title">RemoteDesk</span>
+      </a>
+      <div class="room-chip" id="roomChip">——</div>
+      <div class="top-bar-right">
+        <div class="status-bar" id="connStatus" style="padding:6px 14px;font-size:0.8rem;">
+          <span class="status-dot"></span>
+          <span id="connStatusText">Connecting…</span>
+        </div>
+        <button class="btn btn-danger btn-sm" id="disconnectBtn">⏻ Disconnect</button>
+      </div>
+    </div>
+
+    <!-- Body -->
+    <div class="controller-body">
+      <!-- Video Panel -->
+      <div class="video-panel" id="videoPanel">
+        <div class="video-placeholder" id="videoPlaceholder">
+          <span>📺</span>
+          <span>Waiting for screen share…</span>
+          <span style="font-size:0.8rem;margin-top:4px;">Ask the Android device to start sharing.</span>
+        </div>
+        <video id="remoteVideo" class="remote-video" autoplay playsinline style="display:none;"></video>
+        <canvas id="touchCanvas" class="touch-canvas"></canvas>
+      </div>
+
+      <!-- Side Panel -->
+      <div class="side-panel">
+        <!-- Connection Info -->
+        <div class="side-section">
+          <h3>Session</h3>
+          <div class="status-bar" id="hostStatus">
+            <span class="status-dot"></span>
+            <span id="hostStatusText">Awaiting Android…</span>
+          </div>
+        </div>
+
+        <!-- Controls -->
+        <div class="side-section">
+          <h3>Quick Actions</h3>
+          <div class="btn-grid">
+            <button class="btn btn-ghost" id="btnHome" title="Send Home">🏠 Home</button>
+            <button class="btn btn-ghost" id="btnBack" title="Send Back">◀ Back</button>
+            <button class="btn btn-ghost" id="btnRecent" title="Recent Apps">⊞ Recent</button>
+            <button class="btn btn-ghost" id="btnVolumeUp" title="Volume Up">🔊 Vol+</button>
+            <button class="btn btn-ghost" id="btnVolumeDown" title="Volume Down">🔈 Vol−</button>
+            <button class="btn btn-ghost" id="btnMute" title="Mute">🔇 Mute</button>
+          </div>
+        </div>
+
+        <!-- Keyboard -->
+        <div class="side-section">
+          <h3>Keyboard Input</h3>
+          <textarea id="kbInput" class="kb-textarea" placeholder="Type here — press Enter to send…"></textarea>
+          <div style="display:flex;gap:8px;margin-top:8px;">
+            <button class="btn btn-primary btn-sm" id="sendTextBtn" style="flex:1">Send ↵</button>
+            <button class="btn btn-ghost btn-sm" id="clearTextBtn">✕</button>
+          </div>
+        </div>
+
+        <!-- Gesture Hint -->
+        <div class="side-section">
+          <h3>Touch Controls</h3>
+          <div style="font-size:0.78rem;color:var(--text-muted);line-height:2;">
+            <div>👆 Click &mdash; Tap</div>
+            <div>✌ Drag &mdash; Swipe</div>
+            <div>🖱 Scroll wheel &mdash; Scroll</div>
+            <div>⟲ Double-click &mdash; Double tap</div>
+          </div>
+        </div>
+
+        <!-- Event Log -->
+        <div class="event-log" id="eventLog">
+          <div class="log-line"><span class="t">--:--:--</span><span class="e sys">Session started</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/config.js"></script>
+  <script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
+  <script src="js/socket.js"></script>
+  <script src="js/webrtc.js"></script>
+  <script src="js/controller.js"></script>
+</body>
+</html>
