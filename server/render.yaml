@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: remote-desk-server
+    env: node
+    plan: free
+    rootDir: server
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: ALLOWED_ORIGINS
+        value: "https://remotev2.netlify.app" # UPDATE THIS with your actual Netlify URL
