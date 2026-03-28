@@ -7,7 +7,10 @@
  * Example: 'https://remotedesk-api.onrender.com'
  */
 
+// 1. Visit your Render dashboard to get your actual URL
+// 2. Change this line to: window.REMOTE_SERVER_URL = 'https://your-render-name.onrender.com';
 window.REMOTE_SERVER_URL = 'https://remotedesk-server.onrender.com';
+
 
 // Helper: build full API URL (works both local and deployed)
 window.API_URL = function (path) {

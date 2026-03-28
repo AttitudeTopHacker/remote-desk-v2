@@ -10,4 +10,5 @@ services:
       - key: NODE_ENV
         value: production
       - key: ALLOWED_ORIGINS
-        value: "https://remotev2.netlify.app" # UPDATE THIS with your actual Netlify URL
+        value: "https://remotev2.netlify.app"
+
