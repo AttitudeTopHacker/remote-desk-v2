@@ -123,9 +123,8 @@
   socket.on('host-connected', () => {
     setStatus(El.hostStatus, El.hostStatusText, 'connected', 'Android device connected');
     showToast('Connection established!', 'success');
-    logEvent('sys', 'Android device connected (P2P ready)');
-    // Start WebRTC as offerer
-    startWebRTC();
+    logEvent('sys', 'Android device connected');
+    // WebRTC starts when the Host sends the offer
   });
 
   socket.on('host-disconnected', () => {
@@ -136,24 +135,17 @@
     closePeerConnection();
   });
 
-  // ─── WebRTC ───────────────────────────────────────────────────
-  function startWebRTC() {
-    const pc = createPeerConnection(ROOM_ID, socket, onRemoteTrack);
+  // ─── WebRTC Answer Flow (Controller) ──────────────────────────
+  socket.on('webrtc-offer', async ({ offer }) => {
+    logEvent('sys', 'WebRTC offer received. Connecting...');
+    createPeerConnection(ROOM_ID, socket, onRemoteTrack);
+    await handleOffer(offer, ROOM_ID, socket);
+    logEvent('sys', 'WebRTC answer sent');
+  });
 
-    // Handle incoming answer from host
-    socket.on('webrtc-answer', async ({ answer }) => {
-      await handleAnswer(answer);
-      logEvent('sys', 'WebRTC connected (P2P)');
-    });
-
-    // Handle ICE candidates from host
-    socket.on('ice-candidate', async ({ candidate }) => {
-      await addIceCandidate(candidate);
-    });
-
-    // Create offer
-    createOffer(ROOM_ID, socket);
-  }
+  socket.on('ice-candidate', async ({ candidate }) => {
+    await addIceCandidate(candidate);
+  });
 
   function onRemoteTrack(stream) {
     El.remoteVideo.srcObject = stream;

@@ -9,8 +9,20 @@
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🖥</text></svg>" />
 </head>
 <body>
-  <!-- Toast Notifications -->
   <div class="toast-container" id="toastContainer"></div>
+  
+  <!-- Permission Modal -->
+  <div class="modal-overlay" id="permissionModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.85); backdrop-filter:blur(8px); z-index:2000; align-items:center; justify-content:center; padding:20px;">
+    <div class="modal-card" style="background:var(--bg-card); border:1px solid var(--border-accent); border-radius:var(--radius); padding:32px; max-width:400px; width:100%; box-shadow:0 40px 100px rgba(0,0,0,0.8); text-align:center;">
+      <span class="modal-icon" style="font-size:3.5rem; margin-bottom:20px; display:inline-block;">🤝</span>
+      <h2 style="font-size:1.4rem; margin-bottom:12px;">Remote Access Request</h2>
+      <p style="color:var(--text-secondary); margin-bottom:28px; line-height:1.6; font-size:0.95rem;">A controller device is attempting to connect to your session. User B (Controller) wants to help you. Allow access?</p>
+      <div class="modal-actions" style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+        <button class="btn btn-ghost" id="rejectBtn">Reject</button>
+        <button class="btn btn-success" id="acceptBtn">Allow Access</button>
+      </div>
+    </div>
+  </div>
 
   <div class="page-wrapper">
     <!-- Navigation -->
@@ -200,16 +212,44 @@
         sessionStorage.setItem('roomId', data.roomId);
         sessionStorage.setItem('role', 'host');
 
-        // Connect socket and wait for Controller
+        // Show Host button immediately
+        goControllerBtn.href = `android.html?room=${data.roomId}`;
+        goControllerBtn.textContent = 'Go to Host View →';
+        goControllerBtn.style.display = 'flex';
+
+        // Connect socket and listen for permission/join
         const sock = getSocket();
         sock.emit('join-room-host', { roomId: data.roomId });
         
+        // Listen for Permission Request (on home page)
+        const modal = document.getElementById('permissionModal');
+        const acceptBtn = document.getElementById('acceptBtn');
+        const rejectBtn = document.getElementById('rejectBtn');
+
+        sock.on('permission-request', () => {
+          modal.style.display = 'flex';
+          showToast('Connection requested!', 'info');
+        });
+
+        acceptBtn.onclick = () => {
+          modal.style.display = 'none';
+          sock.emit('permission-response', { roomId: data.roomId, accepted: true });
+          showToast('Access GRANTED! Starting session...', 'success');
+          // Redirect to host view so sharing can begin
+          setTimeout(() => {
+            window.location.href = `android.html?room=${data.roomId}`;
+          }, 1000);
+        };
+
+        rejectBtn.onclick = () => {
+          modal.style.display = 'none';
+          sock.emit('permission-response', { roomId: data.roomId, accepted: false });
+          showToast('Access REJECTED!', 'error');
+        };
+
         sock.on('controller-connected', () => {
           waitingStatus.className = 'status-bar connected';
           waitingStatus.querySelector('span:last-child').textContent = 'Controller joined!';
-          goControllerBtn.href = `android.html?room=${data.roomId}`;
-          goControllerBtn.textContent = 'Go to Host View →';
-          goControllerBtn.style.display = 'flex';
           showToast('Controller connected!', 'success');
         });
       } catch (e) {

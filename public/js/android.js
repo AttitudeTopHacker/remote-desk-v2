@@ -371,23 +371,34 @@
     showToast('Sharing stopped.', 'info');
   }
 
-  // ─── WebRTC Answer Flow ───────────────────────────────────────
+  // ─── WebRTC Offer Flow (Host initiater) ───────────────────────
   function initWebRTC() {
     if (!localStream) return;
 
+    // Only initiate if a controller is actually connected
+    if (El.infoStatus.textContent !== 'Connected') {
+      console.log('[WebRTC] Waiting for controller join before offering...');
+      return;
+    }
+
+    console.log('[WebRTC] Initiating offer...');
     const pc = createPeerConnection(ROOM_ID, socket, null);
 
     // Add local stream tracks
     addStreamToPeer(localStream);
 
-    // Handle incoming offer from controller
-    socket.off('webrtc-offer'); // prevent duplicate handlers
-    socket.on('webrtc-offer', async ({ offer }) => {
-      await handleOffer(offer, ROOM_ID, socket);
-      logCmd('system', 'WebRTC offer received → answer sent');
+    // Create the offer
+    // Since we are the host, we have tracks. We want the controller to receive them.
+    createOffer(ROOM_ID, socket);
+
+    // Listen for answer from controller
+    socket.off('webrtc-answer');
+    socket.on('webrtc-answer', async ({ answer }) => {
+      await handleAnswer(answer);
+      logCmd('system', 'WebRTC answer received → P2P established');
     });
 
-    // Handle ICE candidates from controller
+    // Handle incoming ICE candidates
     socket.off('ice-candidate');
     socket.on('ice-candidate', async ({ candidate }) => {
       await addIceCandidate(candidate);
