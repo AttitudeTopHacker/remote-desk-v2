@@ -128,10 +128,27 @@ io.on('connection', (socket) => {
     console.log(`🖥  Controller joined room: ${id} (${socket.id})`);
     socket.emit('joined', { roomId: id, role: 'controller' });
 
-    // Notify host if already in room
+    // Notify host if already in room (request permission)
     if (room.hostSocketId) {
-      io.to(room.hostSocketId).emit('controller-connected', { roomId: id });
-      socket.emit('host-connected', { roomId: id });
+      io.to(room.hostSocketId).emit('permission-request', { roomId: id, controllerId: socket.id });
+      socket.emit('waiting-for-permission', { roomId: id });
+    }
+  });
+
+  // Permission response from Host -> Controller
+  socket.on('permission-response', ({ roomId, accepted }) => {
+    const id = roomId?.toUpperCase();
+    const room = rooms.get(id);
+    if (room?.controllerSocketId) {
+      io.to(room.controllerSocketId).emit('permission-response', { accepted });
+      if (accepted) {
+        console.log(`✅ Permission GRANTED for room ${id}`);
+        // Now they can proceed with WebRTC
+        io.to(room.hostSocketId).emit('controller-connected', { roomId: id });
+        io.to(room.controllerSocketId).emit('host-connected', { roomId: id });
+      } else {
+        console.log(`❌ Permission DENIED for room ${id}`);
+      }
     }
   });
 

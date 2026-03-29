@@ -1,8 +1,8 @@
 /**
  * android.js — Android Host page logic
  * Handles: socket events, screen capture via getDisplayMedia,
- *          WebRTC answer flow, receiving remote commands (display only),
- *          and disconnect.
+ *          camera fallback for mobile, WebRTC answer flow,
+ *          receiving remote commands (display only), and disconnect.
  */
 
 (function () {
@@ -17,6 +17,11 @@
     window.location.href = 'index.html';
     return;
   }
+
+  // ─── Device Detection ────────────────────────────────────────
+  const isMobile = /Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+  const hasDisplayMedia = !!(navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia);
+  const hasUserMedia = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
 
   // ─── DOM Elements ─────────────────────────────────────────────
   const El = {
@@ -35,6 +40,12 @@
     infoCommands:    document.getElementById('infoCommands'),
     infoScreen:      document.getElementById('infoScreen'),
     disconnectBtn:   document.getElementById('disconnectBtn'),
+    shareMode:       document.getElementById('shareMode'),
+    cameraSwitchBtn: document.getElementById('cameraSwitchBtn'),
+    // Permission Modal
+    permissionModal: document.getElementById('permissionModal'),
+    acceptBtn:       document.getElementById('acceptBtn'),
+    rejectBtn:       document.getElementById('rejectBtn'),
   };
 
   El.roomBadge.textContent = ROOM_ID;
@@ -42,6 +53,67 @@
 
   let commandCount = 0;
   let localStream = null;
+  let currentShareMode = 'screen'; // 'screen' or 'camera'
+  let currentFacingMode = 'environment'; // 'environment' (back) or 'user' (front)
+
+  // ─── Update UI based on device capabilities ──────────────────
+  function initShareUI() {
+    const shareModeEl = El.shareMode;
+    if (!shareModeEl) return;
+
+    if (isMobile && !hasDisplayMedia) {
+      // Android — only camera available
+      shareModeEl.innerHTML = `
+        <div class="share-mode-info warning">
+          <span>⚠️</span>
+          <div>
+            <strong>Screen share is not supported on this device</strong>
+            <p>Android browsers don't support screen capture. You can share your <strong>camera</strong> instead, or use a <strong>desktop/laptop browser</strong> for full screen sharing.</p>
+          </div>
+        </div>
+      `;
+      currentShareMode = 'camera';
+      El.startShareBtn.innerHTML = '📷 Share Camera';
+    } else if (isMobile && hasDisplayMedia) {
+      // Some mobile browsers might support it
+      shareModeEl.innerHTML = `
+        <div class="share-mode-tabs">
+          <button class="mode-tab active" data-mode="screen" id="modeScreen">📺 Screen</button>
+          <button class="mode-tab" data-mode="camera" id="modeCamera">📷 Camera</button>
+        </div>
+      `;
+      setupModeTabs();
+    } else {
+      // Desktop — full support
+      shareModeEl.innerHTML = `
+        <div class="share-mode-tabs">
+          <button class="mode-tab active" data-mode="screen" id="modeScreen">📺 Screen</button>
+          <button class="mode-tab" data-mode="camera" id="modeCamera">📷 Camera</button>
+        </div>
+      `;
+      setupModeTabs();
+    }
+  }
+
+  function setupModeTabs() {
+    const tabs = document.querySelectorAll('.mode-tab');
+    tabs.forEach(tab => {
+      tab.addEventListener('click', () => {
+        tabs.forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        currentShareMode = tab.dataset.mode;
+        El.startShareBtn.innerHTML = currentShareMode === 'screen'
+          ? '▶ Start Screen Share'
+          : '📷 Share Camera';
+        // Show/hide camera switch button
+        if (El.cameraSwitchBtn) {
+          El.cameraSwitchBtn.style.display = 'none';
+        }
+      });
+    });
+  }
+
+  initShareUI();
 
   // ─── Toast ────────────────────────────────────────────────────
   function showToast(msg, type = 'info') {
@@ -107,6 +179,28 @@
     if (localStream) initWebRTC();
   });
 
+  // ─── Permission Request Handling ──────────────────────────────
+  socket.on('permission-request', () => {
+    logCmd('system', 'Incoming connection request…');
+    if (El.permissionModal) {
+      El.permissionModal.style.display = 'flex';
+    }
+  });
+
+  El.acceptBtn.addEventListener('click', () => {
+    El.permissionModal.style.display = 'none';
+    socket.emit('permission-response', { roomId: ROOM_ID, accepted: true });
+    logCmd('system', 'Permission GRANTED');
+    showToast('Access granted to controller', 'success');
+  });
+
+  El.rejectBtn.addEventListener('click', () => {
+    El.permissionModal.style.display = 'none';
+    socket.emit('permission-response', { roomId: ROOM_ID, accepted: false });
+    logCmd('system', 'Permission REJECTED');
+    showToast('Access request rejected', 'error');
+  });
+
   socket.on('controller-disconnected', () => {
     setStatus('waiting', 'Controller disconnected');
     showToast('Controller disconnected.', 'error');
@@ -137,33 +231,68 @@
     logCmd('keyboard', `Text: "${text.length > 30 ? text.slice(0, 30) + '…' : text}"`);
   });
 
-  // ─── Screen Share ─────────────────────────────────────────────
+  // ─── Start Sharing (Screen or Camera) ─────────────────────────
   El.startShareBtn.addEventListener('click', async () => {
-    if (!navigator.mediaDevices?.getDisplayMedia) {
-      showToast('Screen sharing not supported on this browser/device.', 'error');
-      return;
-    }
     try {
       El.startShareBtn.disabled = true;
       El.startShareBtn.textContent = 'Starting…';
-      localStream = await navigator.mediaDevices.getDisplayMedia({
-        video: { frameRate: { ideal: 30, max: 60 }, width: { ideal: 1280 }, height: { ideal: 720 } },
-        audio: false,
-      });
+
+      if (currentShareMode === 'screen') {
+        // Screen share mode
+        if (!hasDisplayMedia) {
+          showToast('Screen sharing not supported. Switching to camera mode.', 'error');
+          currentShareMode = 'camera';
+          // Fall through to camera
+        } else {
+          localStream = await navigator.mediaDevices.getDisplayMedia({
+            video: { frameRate: { ideal: 30, max: 60 }, width: { ideal: 1280 }, height: { ideal: 720 } },
+            audio: false,
+          });
+          logCmd('system', 'Screen sharing started');
+          showToast('Screen sharing started!', 'success');
+        }
+      }
+
+      if (currentShareMode === 'camera') {
+        // Camera share mode (fallback for Android)
+        if (!hasUserMedia) {
+          showToast('Neither screen share nor camera is available on this device.', 'error');
+          El.startShareBtn.disabled = false;
+          El.startShareBtn.textContent = currentShareMode === 'camera' ? '📷 Share Camera' : '▶ Start Screen Share';
+          return;
+        }
+
+        localStream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: currentFacingMode,
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+            frameRate: { ideal: 30 },
+          },
+          audio: false,
+        });
+
+        logCmd('system', `Camera sharing started (${currentFacingMode === 'user' ? 'front' : 'back'})`);
+        showToast('Camera sharing started!', 'success');
+
+        // Show camera switch button on mobile
+        if (El.cameraSwitchBtn) {
+          El.cameraSwitchBtn.style.display = 'flex';
+        }
+      }
 
       // Show preview
       El.localVideo.srcObject = localStream;
       El.localVideo.style.display = 'block';
       El.previewEmpty.style.display = 'none';
       El.liveLabel.style.display = 'block';
+      El.liveLabel.textContent = currentShareMode === 'camera' ? '● CAMERA LIVE' : '● LIVE';
       El.startShareBtn.style.display = 'none';
       El.stopShareBtn.style.display = 'flex';
       El.infoScreen.textContent = 'Live';
       El.infoScreen.style.color = 'var(--success)';
 
       socket.emit('screen-share-status', { roomId: ROOM_ID, status: 'start' });
-      logCmd('system', 'Screen sharing started');
-      showToast('Screen sharing started!', 'success');
 
       // Listen for track end (user stops via browser UI)
       localStream.getVideoTracks()[0].addEventListener('ended', stopShare);
@@ -171,11 +300,48 @@
       // If controller already connected, start WebRTC
       initWebRTC();
     } catch (e) {
-      showToast('Could not start screen share: ' + (e.message || 'Permission denied'), 'error');
+      console.error('Share error:', e);
+      showToast('Could not start sharing: ' + (e.message || 'Permission denied'), 'error');
       El.startShareBtn.disabled = false;
-      El.startShareBtn.textContent = '▶ Start Screen Share';
+      El.startShareBtn.textContent = currentShareMode === 'camera' ? '📷 Share Camera' : '▶ Start Screen Share';
     }
   });
+
+  // ─── Camera Switch (front/back) ───────────────────────────────
+  if (El.cameraSwitchBtn) {
+    El.cameraSwitchBtn.addEventListener('click', async () => {
+      if (currentShareMode !== 'camera' || !localStream) return;
+
+      // Toggle facing mode
+      currentFacingMode = currentFacingMode === 'user' ? 'environment' : 'user';
+
+      // Stop existing tracks
+      localStream.getTracks().forEach(t => t.stop());
+
+      try {
+        localStream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: currentFacingMode,
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+            frameRate: { ideal: 30 },
+          },
+          audio: false,
+        });
+
+        El.localVideo.srcObject = localStream;
+        localStream.getVideoTracks()[0].addEventListener('ended', stopShare);
+
+        logCmd('system', `Switched to ${currentFacingMode === 'user' ? 'front' : 'back'} camera`);
+        showToast(`Switched to ${currentFacingMode === 'user' ? 'front' : 'back'} camera`, 'success');
+
+        // Re-init WebRTC with new stream
+        initWebRTC();
+      } catch (e) {
+        showToast('Could not switch camera: ' + e.message, 'error');
+      }
+    });
+  }
 
   El.stopShareBtn.addEventListener('click', stopShare);
 
@@ -190,15 +356,19 @@
     El.liveLabel.style.display = 'none';
     El.startShareBtn.style.display = 'flex';
     El.startShareBtn.disabled = false;
-    El.startShareBtn.textContent = '▶ Start Screen Share';
+    El.startShareBtn.textContent = currentShareMode === 'camera' ? '📷 Share Camera' : '▶ Start Screen Share';
     El.stopShareBtn.style.display = 'none';
     El.infoScreen.textContent = 'Off';
     El.infoScreen.style.color = '';
 
+    if (El.cameraSwitchBtn) {
+      El.cameraSwitchBtn.style.display = 'none';
+    }
+
     socket.emit('screen-share-status', { roomId: ROOM_ID, status: 'stop' });
     closePeerConnection();
-    logCmd('system', 'Screen sharing stopped');
-    showToast('Screen sharing stopped.', 'info');
+    logCmd('system', 'Sharing stopped');
+    showToast('Sharing stopped.', 'info');
   }
 
   // ─── WebRTC Answer Flow ───────────────────────────────────────
@@ -241,5 +411,8 @@
   });
 
   logCmd('system', `Host ready — Room: ${ROOM_ID}`);
+  if (isMobile && !hasDisplayMedia) {
+    logCmd('system', 'Device: Android — Camera mode active');
+  }
 
 })();

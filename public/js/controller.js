@@ -100,6 +100,30 @@
     setStatus(El.hostStatus, El.hostStatusText, 'connected', 'Android device connected');
     showToast('Android device connected! Initiating screen share…', 'success');
     logEvent('sys', 'Android device connected');
+    // WebRTC start occurs ONLY after permission is granted
+  });
+
+  socket.on('waiting-for-permission', () => {
+    setStatus(El.hostStatus, El.hostStatusText, 'waiting', 'Waiting for Host Permission…');
+    showToast('Permission requested. Please wait for the host to allow the connection.', 'info');
+    logEvent('sys', 'Waiting for permission…');
+  });
+
+  socket.on('permission-response', ({ accepted }) => {
+    if (accepted) {
+      showToast('Permission granted! Connecting…', 'success');
+      logEvent('sys', 'Permission granted');
+    } else {
+      showToast('Permission denied by the host.', 'error');
+      logEvent('sys', 'Permission denied');
+      setTimeout(() => { window.location.href = 'index.html'; }, 3000);
+    }
+  });
+
+  socket.on('host-connected', () => {
+    setStatus(El.hostStatus, El.hostStatusText, 'connected', 'Android device connected');
+    showToast('Connection established!', 'success');
+    logEvent('sys', 'Android device connected (P2P ready)');
     // Start WebRTC as offerer
     startWebRTC();
   });

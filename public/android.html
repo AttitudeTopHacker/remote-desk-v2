@@ -60,10 +60,70 @@
       font-size: 0.8rem; text-align: center;
     }
     .info-item .info-val { font-size: 1.1rem; font-weight: 700; color: var(--accent); display: block; margin-top: 4px; }
+
+    /* Share Mode Tabs */
+    .share-mode-tabs {
+      display: flex; gap: 4px; background: var(--bg-input); border-radius: var(--radius-xs);
+      padding: 3px; margin-bottom: 12px;
+    }
+    .mode-tab {
+      flex: 1; padding: 8px 12px; border: none; border-radius: calc(var(--radius-xs) - 2px);
+      background: transparent; color: var(--text-secondary); font-size: 0.8rem;
+      font-weight: 600; cursor: pointer; transition: all 0.2s;
+    }
+    .mode-tab.active {
+      background: var(--accent); color: #fff; box-shadow: 0 2px 8px rgba(99,102,241,0.3);
+    }
+    .mode-tab:hover:not(.active) { color: var(--text-primary); }
+
+    /* Share Mode Info/Warning */
+    .share-mode-info {
+      display: flex; gap: 12px; align-items: flex-start; padding: 12px 14px;
+      border-radius: var(--radius-xs); margin-bottom: 12px; font-size: 0.8rem;
+      line-height: 1.5;
+    }
+    .share-mode-info.warning {
+      background: rgba(251,191,36,0.08); border: 1px solid rgba(251,191,36,0.25);
+      color: #fbbf24;
+    }
+    .share-mode-info span:first-child { font-size: 1.4rem; flex-shrink: 0; margin-top: -2px; }
+    .share-mode-info strong { color: #fbbf24; }
+    .share-mode-info p { margin: 4px 0 0; color: var(--text-secondary); font-size: 0.75rem; }
+
+    /* Camera switch button */
+    .camera-switch-btn {
+      display: none; align-items: center; justify-content: center; gap: 6px;
+      padding: 8px 16px; background: var(--bg-input); border: 1px solid var(--border);
+      border-radius: var(--radius-xs); color: var(--text-primary);
+      font-size: 0.8rem; font-weight: 600; cursor: pointer; transition: all 0.2s;
+    }
+    .camera-switch-btn:hover { border-color: var(--accent); color: var(--accent); }
+
     @media (max-width: 480px) {
       .android-content { padding: 14px 10px 30px; }
       .preview-box { max-height: 260px; }
     }
+
+    /* Permission Modal */
+    .modal-overlay {
+      position: fixed; inset: 0; background: rgba(13, 15, 20, 0.85);
+      backdrop-filter: blur(8px); z-index: 2000;
+      display: none; align-items: center; justify-content: center; padding: 20px;
+      animation: fadeIn 0.3s ease;
+    }
+    .modal-card {
+      background: var(--bg-card); border: 1px solid var(--border-accent);
+      border-radius: var(--radius); padding: 32px; max-width: 400px; width: 100%;
+      box-shadow: 0 40px 100px rgba(0,0,0,0.8); text-align: center;
+      animation: fadeInUp 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .modal-icon {
+      font-size: 3.5rem; margin-bottom: 20px; display: inline-block;
+      filter: drop-shadow(0 0 15px var(--accent-glow));
+    }
+    .modal-card h2 { font-size: 1.4rem; margin-bottom: 12px; color: var(--text-primary); }
+    .modal-card p { color: var(--text-secondary); margin-bottom: 28px; line-height: 1.6; font-size: 0.95rem; }
+    .modal-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
   </style>
 </head>
 <body>
@@ -92,24 +152,30 @@
 
         <!-- Screen Share Card -->
         <div class="card" style="padding:18px;">
-          <h3 style="font-size:0.9rem;margin-bottom:14px;">📺 Screen Sharing</h3>
+          <h3 style="font-size:0.9rem;margin-bottom:14px;">📺 Sharing</h3>
+
+          <!-- Share Mode Selector (populated by JS) -->
+          <div id="shareMode"></div>
 
           <!-- Preview -->
           <div class="preview-box" id="previewBox">
             <div class="preview-empty" id="previewEmpty">
               <span>📱</span>
-              <span>Your screen preview will appear here</span>
+              <span>Your screen/camera preview will appear here</span>
             </div>
             <video id="localVideo" class="local-video" autoplay playsinline muted style="display:none;"></video>
             <div class="preview-label" id="liveLabel" style="display:none;">● LIVE</div>
           </div>
 
-          <div style="display:flex;gap:10px;margin-top:14px;">
+          <div style="display:flex;gap:10px;margin-top:14px;align-items:center;">
             <button class="btn btn-success btn-block" id="startShareBtn">
               ▶ Start Screen Share
             </button>
             <button class="btn btn-danger btn-sm" id="stopShareBtn" style="display:none;">
               ⏹ Stop
+            </button>
+            <button class="camera-switch-btn" id="cameraSwitchBtn" title="Switch Camera">
+              🔄 Flip
             </button>
           </div>
         </div>
@@ -165,6 +231,19 @@
     <footer>
       <p>RemoteDesk &mdash; Android Host View &nbsp;|&nbsp; <a href="index.html">Back to Home</a></p>
     </footer>
+
+    <!-- Permission Modal -->
+    <div class="modal-overlay" id="permissionModal">
+      <div class="modal-card">
+        <span class="modal-icon">🤝</span>
+        <h2>Remote Access Request</h2>
+        <p>A controller device is attempting to connect to your session. Do you want to allow full remote access and control?</p>
+        <div class="modal-actions">
+          <button class="btn btn-ghost" id="rejectBtn">Reject</button>
+          <button class="btn btn-success" id="acceptBtn">Allow Access</button>
+        </div>
+      </div>
+    </div>
   </div>
 
   <script src="js/config.js"></script>
